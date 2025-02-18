@@ -37,28 +37,40 @@ func (s *MDNSScanner) DiscoverPeers(ctx context.Context, ch chan model.ServiceIn
 		log.Fatalln("failed init resolver:", err.Error())
 	}
 
-	// Канал для получения записей о сервисах
 	entries := make(chan *zeroconf.ServiceEntry)
+
 	go func(results <-chan *zeroconf.ServiceEntry) {
-		for entry := range results {
-			if entry.Instance != s._uuid {
-				inst := model.ServiceInstance{
-					InstanceName: entry.Instance,
-					ServiceName:  entry.Service,
-					Domain:       entry.Domain,
-					HostName:     entry.HostName,
-					Port:         entry.Port,
-					IPv4:         extractLocalIP(entry.AddrIPv4),
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case entry, ok := <-results:
+				if !ok {
+					return
 				}
-				ch <- inst
-				fmt.Printf("\nfound inst: %+v\n", inst)
+				if entry.Instance != s._uuid {
+					inst := model.ServiceInstance{
+						InstanceName: entry.Instance,
+						ServiceName:  entry.Service,
+						Domain:       entry.Domain,
+						HostName:     entry.HostName,
+						Port:         entry.Port,
+						IPv4:         extractLocalIP(entry.AddrIPv4),
+					}
+					select {
+					case ch <- inst:
+						fmt.Printf("\nfound inst: %+v\n", inst)
+					case <-ctx.Done():
+						return
+					}
+				}
 			}
 		}
 	}(entries)
 
 	err = resolver.Browse(ctx, model.SERVICE_NAME, "local.", entries)
 	if err != nil {
-		log.Fatalln("faled browse servers:", err.Error())
+		log.Fatalln("failed browse servers:", err.Error())
 	}
 }
 

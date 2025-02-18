@@ -9,19 +9,20 @@ import (
 	"sync"
 
 	"github.com/0x0FACED/rapid/configs"
+	"github.com/0x0FACED/rapid/internal/model"
+	"github.com/google/uuid"
 )
 
 type FileInfo struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Path     string `json:"path"`
-	Size     int64  `json:"size"`
-	Uploaded bool   `json:"uploaded"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Path string `json:"path"`
+	Size int64  `json:"size"`
 }
 
 type LANServer struct {
 	httpServer *http.Server
-	fileList   map[string]FileInfo
+	fileList   map[string]model.File
 	mu         sync.Mutex
 
 	config configs.LANServerConfig
@@ -34,7 +35,7 @@ func New(cfg configs.LANServerConfig) *LANServer {
 			Addr:    "0.0.0.0:8070",
 			Handler: mux,
 		},
-		fileList: make(map[string]FileInfo),
+		fileList: make(map[string]model.File),
 		config:   cfg,
 	}
 	server.RegisterHandlers(mux)
@@ -52,6 +53,28 @@ func (s *LANServer) Start() error {
 	return s.httpServer.ListenAndServe()
 }
 
+func (s *LANServer) ShareLocal(path string) (model.File, error) {
+	fileStat, err := os.Stat(path)
+	if err != nil {
+		return model.File{}, err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	id := uuid.NewString()
+	file := model.File{
+		ID:   id,
+		Name: fileStat.Name(),
+		Path: path,
+		Size: fileStat.Size(),
+	}
+	s.fileList[id] = file
+
+	return file, nil
+}
+
+// TODO: add auth
 func (s *LANServer) handleShare(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -77,8 +100,9 @@ func (s *LANServer) handleShare(w http.ResponseWriter, r *http.Request) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	id := input.Path
-	s.fileList[id] = FileInfo{
+
+	id := uuid.NewString()
+	s.fileList[id] = model.File{
 		ID:   id,
 		Name: input.Name,
 		Path: input.Path,
@@ -101,7 +125,7 @@ func (s *LANServer) handleFiles(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	files := make([]FileInfo, 0, len(s.fileList))
+	files := make([]model.File, 0, len(s.fileList))
 	for _, file := range s.fileList {
 		files = append(files, file)
 	}
