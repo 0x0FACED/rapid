@@ -13,13 +13,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type FileInfo struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Path string `json:"path"`
-	Size int64  `json:"size"`
-}
-
 type LANServer struct {
 	httpServer *http.Server
 	fileList   map[string]model.File
