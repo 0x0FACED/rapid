@@ -57,18 +57,14 @@ func (s *MDNSScanner) DiscoverPeers(ctx context.Context, ch chan model.ServiceIn
 						Port:         entry.Port,
 						IPv4:         extractLocalIP(entry.AddrIPv4),
 					}
-					select {
-					case ch <- inst:
-						fmt.Printf("\nfound inst: %+v\n", inst)
-					case <-ctx.Done():
-						return
-					}
+					ch <- inst
+
 				}
 			}
 		}
 	}(entries)
 
-	err = resolver.Browse(ctx, model.SERVICE_NAME, "local.", entries)
+	err = resolver.Browse(ctx, model.SERVICE_NAME, ".local.", entries)
 	if err != nil {
 		log.Fatalln("failed browse servers:", err.Error())
 	}
