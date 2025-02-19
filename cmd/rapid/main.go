@@ -3,10 +3,12 @@ package main
 import (
 	"fmt"
 
+	"fyne.io/fyne/v2/app"
 	"github.com/0x0FACED/rapid/configs"
 	"github.com/0x0FACED/rapid/internal/lan/client"
 	"github.com/0x0FACED/rapid/internal/lan/mdnss"
 	"github.com/0x0FACED/rapid/internal/lan/server"
+	"github.com/0x0FACED/rapid/internal/rapid"
 	"github.com/0x0FACED/rapid/pkg/generator"
 	"github.com/google/uuid"
 )
@@ -14,7 +16,6 @@ import (
 func main() {
 	var name string
 	var err error
-
 	name, err = generator.GenerateName()
 	if err != nil {
 		name = uuid.NewString()
@@ -27,6 +28,11 @@ func main() {
 	}
 
 	c := client.New(mdnss)
+	_ = c
 	s := server.New(configs.LANServerConfig{DownloadsDir: "./test-dir"})
-	s.Start()
+	go s.Start()
+
+	fyneApp := app.NewWithID(name)
+	app := rapid.New(s, c, fyneApp)
+	app.Start()
 }
