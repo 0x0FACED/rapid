@@ -2,6 +2,10 @@ package rapid
 
 import (
 	"context"
+	"fmt"
+	"strconv"
+	"sync"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -16,6 +20,8 @@ type Rapid struct {
 	client *client.LANClient
 
 	fyneApp fyne.App
+
+	mu sync.Mutex
 }
 
 func New(s *server.LANServer, c *client.LANClient, a fyne.App) *Rapid {
@@ -34,20 +40,19 @@ func (a *Rapid) Start() error {
 	return nil
 }
 
-func (a Rapid) createMainWindow() fyne.Window {
+func (a *Rapid) createMainWindow() fyne.Window {
 	mainWindow := a.fyneApp.NewWindow("rapid")
 
-	// 1. Верхняя панель для вкладок
 	tabs := container.NewAppTabs(
 		container.NewTabItem("LAN", a.createLANContent()),
-		container.NewTabItem("WebRTC", a.createLANContent()), // same as lan currenty
+		container.NewTabItem("WebRTC", a.createWebRTCContent()),
 		container.NewTabItem("Options", createOptionsContent()),
 	)
 	mainWindow.Resize(fyne.NewSize(800, 600))
 
 	content := container.NewBorder(
-		createTopPanel(), // Top panel with file dialog and search
-		createFooter(),   // Footer with additional info
+		createTopPanel(),
+		createFooter(),
 		nil,
 		nil,
 		tabs,
@@ -58,19 +63,48 @@ func (a Rapid) createMainWindow() fyne.Window {
 	return mainWindow
 }
 
-func (a *Rapid) updateAddressList(list *widget.List, addresses *[]model.ServiceInstance, ch chan model.ServiceInstance) {
-	for {
-		select {
-		case addr := <-ch:
-			a.fyneApp.SendNotification(fyne.NewNotification("New server found", addr.InstanceName))
-			*addresses = append(*addresses, addr)
-			list.Refresh()
+// TODO: refactor
+func (a *Rapid) updateAddressList(list *widget.List, addressList *[]model.ServiceInstance, addresses map[string]model.ServiceInstance, ch chan model.ServiceInstance) {
+	go a.startPingLoop(list, addressList, addresses)
+
+	for addr := range ch {
+		fmt.Println("NEW ADDR: ", addr.InstanceName)
+		if v, exists := addresses[addr.IPv4]; !exists || addr.InstanceName != v.InstanceName {
+			addresses[addr.IPv4+":"+strconv.Itoa(addr.Port)] = addr
+			a.refreshAddressList(list, addressList, addresses)
 		}
 	}
 }
 
-func (a *Rapid) startDiscovery(ctx context.Context, ch chan model.ServiceInstance) {
-	go func() {
-		a.client.DiscoverServers(ctx, ch)
-	}()
+// TODO: refactor
+func (a *Rapid) startPingLoop(list *widget.List, addressList *[]model.ServiceInstance, addresses map[string]model.ServiceInstance) {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		a.mu.Lock()
+		for addr, inst := range addresses {
+			port := strconv.Itoa(inst.Port)
+			fmt.Printf("Currently ping: %s:%s inst: %s\n", inst.IPv4, port, inst.InstanceName)
+			if !a.client.PingServer(addr) {
+				fmt.Println("deleted server:", inst.InstanceName)
+				delete(addresses, addr)
+			}
+		}
+		a.mu.Unlock()
+		a.refreshAddressList(list, addressList, addresses)
+	}
+}
+
+// TODO: refactor
+func (a *Rapid) refreshAddressList(list *widget.List, addressList *[]model.ServiceInstance, addresses map[string]model.ServiceInstance) {
+	*addressList = make([]model.ServiceInstance, 0, len(addresses))
+	for _, v := range addresses {
+		*addressList = append(*addressList, v)
+	}
+	list.Refresh()
+}
+
+func (a *Rapid) startScanLocalAddrs(ctx context.Context, ch chan model.ServiceInstance) {
+	a.client.DiscoverServers(ctx, ch)
 }
