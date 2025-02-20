@@ -3,6 +3,7 @@ package rapid
 import (
 	"context"
 	"log"
+	"strconv"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -11,33 +12,38 @@ import (
 	"github.com/0x0FACED/rapid/internal/model"
 )
 
+// TODO: impl
+func (a *Rapid) createWebRTCContent() fyne.CanvasObject {
+	return widget.NewLabel("test webrtc")
+}
+
+// TODO: refactor
 func (a *Rapid) createLANContent() fyne.CanvasObject {
-	var addresses []model.ServiceInstance
+	addresses := make(map[string]model.ServiceInstance)
+	var addressList []model.ServiceInstance
 	addressesCh := make(chan model.ServiceInstance, 10)
 
-	// Запускаем фоновую задачу для поиска серверов
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	a.startDiscovery(ctx, addressesCh)
+	ctx := context.Background()
+	go a.startScanLocalAddrs(ctx, addressesCh)
 
 	// Addresses list
 	addressesLabel := widget.NewLabel("Addresses")
 	addressesLabel.TextStyle = fyne.TextStyle{Bold: true, Symbol: true}
 	addressesLabel.Alignment = fyne.TextAlignCenter
+
 	addressesList := widget.NewList(
 		func() int {
-			return len(addresses)
+			return len(addressList)
 		},
 		func() fyne.CanvasObject {
 			return widget.NewLabel("Address")
 		},
 		func(i widget.ListItemID, o fyne.CanvasObject) {
-			o.(*widget.Label).SetText(addresses[i].InstanceName)
+			o.(*widget.Label).SetText(addressList[i].InstanceName)
 		},
 	)
 
-	// Обновляем список адресов в UI
-	go a.updateAddressList(addressesList, &addresses, addressesCh)
+	go a.updateAddressList(addressesList, &addressList, addresses, addressesCh)
 
 	// Received files list
 	receivedFilesLabel := widget.NewLabel("Files from address")
@@ -45,20 +51,21 @@ func (a *Rapid) createLANContent() fyne.CanvasObject {
 	receivedFilesLabel.Alignment = fyne.TextAlignCenter
 	receivedFiles := widget.NewList(
 		func() int {
-			return 0 // Изначально пустой список
+			return 0
 		},
 		func() fyne.CanvasObject {
 			return widget.NewLabel("File")
 		},
 		func(i widget.ListItemID, o fyne.CanvasObject) {
-			o.(*widget.Label).SetText("File info" + string(i))
+			o.(*widget.Label).SetText("File info " + strconv.Itoa(i))
 		},
 	)
 
 	// Обработка нажатия на адрес
 	addressesList.OnSelected = func(id widget.ListItemID) {
-		addr := addresses[id].IPv4
-		files, err := a.client.GetFiles(addr)
+		addr := addressList[id].IPv4
+		port := strconv.Itoa(addressList[id].Port)
+		files, err := a.client.GetFiles(addr, port)
 		if err != nil {
 			log.Println("Error getting files:", err)
 			return
@@ -82,69 +89,42 @@ func (a *Rapid) createLANContent() fyne.CanvasObject {
 	sharedFilesLabel.Alignment = fyne.TextAlignCenter
 	sharedFiles := widget.NewList(
 		func() int {
-			return 0 // Изначально пустой список
+			return 0
 		},
 		func() fyne.CanvasObject {
 			return widget.NewLabel("Shared File")
 		},
 		func(i widget.ListItemID, o fyne.CanvasObject) {
-			o.(*widget.Label).SetText("Shared file" + string(i))
+			o.(*widget.Label).SetText("Shared file " + strconv.Itoa(i))
 		},
 	)
 
-	// Split the lists
 	lists := container.NewHSplit(
-		container.NewBorder(
-			addressesLabel, // Заголовок сверху
-			nil,            // Ничего снизу
-			nil,            // Ничего слева
-			nil,            // Ничего справа
-			addressesList,  // Список адресов в центре (растягивается)
-		),
+		container.NewBorder(addressesLabel, nil, nil, nil, addressesList),
 		container.NewVSplit(
-			container.NewBorder(
-				receivedFilesLabel, // Заголовок сверху
-				nil,                // Ничего снизу
-				nil,                // Ничего слева
-				nil,                // Ничего справа
-				receivedFiles,      // Список файлов в центре (растягивается)
-			),
-			container.NewBorder(
-				sharedFilesLabel, // Заголовок сверху
-				nil,              // Ничего снизу
-				nil,              // Ничего слева
-				nil,              // Ничего справа
-				sharedFiles,      // Список shared файлов в центре (растягивается)
-			),
+			container.NewBorder(receivedFilesLabel, nil, nil, nil, receivedFiles),
+			container.NewBorder(sharedFilesLabel, nil, nil, nil, sharedFiles),
 		),
 	)
 
 	return lists
 }
 
+// TODO: impl
 func createOptionsContent() fyne.CanvasObject {
-	// Placeholder for options content
 	return widget.NewLabel("Options Content")
 }
 
 func createTopPanel() fyne.CanvasObject {
-	// File dialog button
 	fileDialogButton := widget.NewButton("Choose file", func() {
-		// TODO: Call your API to handle file selection
+		// TODO: file dialog
 	})
 
-	// Search bar
 	searchEntry := widget.NewEntry()
 	searchEntry.SetPlaceHolder("Search...")
 
-	// Filters button
-	/*filtersButton := widget.NewButton("Filters", func() {
-		// TODO: Implement filters functionality
-	})*/
-
 	space := layout.NewSpacer()
 	space.Resize(fyne.NewSize(10, searchEntry.MinSize().Height))
-	// Используем HBox с Spacer для равномерного распределения
 	return container.NewGridWithColumns(
 		3,
 		fileDialogButton,
@@ -153,7 +133,7 @@ func createTopPanel() fyne.CanvasObject {
 	)
 }
 
+// TODO: add more widgets
 func createFooter() fyne.CanvasObject {
-	// Footer with some info
 	return widget.NewLabel("Version 1.0.0")
 }
