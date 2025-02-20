@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// TODO: refactor
 func main() {
 	var name string
 	var err error
@@ -29,7 +30,7 @@ func main() {
 
 	c := client.New(mdnss)
 	_ = c
-	s := server.New(configs.LANServerConfig{DownloadsDir: "./test-dir"})
+	s := server.New(configs.LANServerConfig{Address: "0.0.0.0:8080", DownloadsDir: "./test-dir"})
 	go s.Start()
 
 	fyneApp := app.NewWithID(name)
