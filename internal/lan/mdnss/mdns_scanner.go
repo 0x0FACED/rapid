@@ -3,9 +3,10 @@ package mdnss
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/0x0FACED/rapid/internal/model"
 	"github.com/grandcat/zeroconf"
@@ -31,43 +32,53 @@ func New(serviceName string, port int) (*MDNSScanner, error) {
 	}, nil
 }
 
-func (s *MDNSScanner) DiscoverPeers(ctx context.Context, ch chan model.ServiceInstance) {
+func (s *MDNSScanner) DiscoverPeers(ctx context.Context, ch chan model.ServiceInstance) error {
 	resolver, err := zeroconf.NewResolver(nil)
 	if err != nil {
-		log.Fatalln("failed init resolver:", err.Error())
+		return fmt.Errorf("failed to initialize resolver: %w", err)
 	}
 
 	entries := make(chan *zeroconf.ServiceEntry)
+	defer close(entries)
 
-	go func(results <-chan *zeroconf.ServiceEntry) {
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case entry, ok := <-results:
+			case entry, ok := <-entries:
 				if !ok {
 					return
 				}
-				if entry.Instance != s._uuid {
-					inst := model.ServiceInstance{
-						InstanceName: entry.Instance,
-						ServiceName:  entry.Service,
-						Domain:       entry.Domain,
-						HostName:     entry.HostName,
-						Port:         entry.Port,
-						IPv4:         extractLocalIP(entry.AddrIPv4),
-					}
-					ch <- inst
-
+				if entry.Instance == s._uuid {
+					continue
 				}
+				inst := model.ServiceInstance{
+					InstanceName: entry.Instance,
+					ServiceName:  entry.Service,
+					Domain:       entry.Domain,
+					HostName:     entry.HostName,
+					Port:         entry.Port,
+					IPv4:         extractLocalIP(entry.AddrIPv4),
+					// TODO: remove
+					LastSeen: time.Now(),
+				}
+				ch <- inst
 			}
 		}
-	}(entries)
+	}()
 
 	err = resolver.Browse(ctx, model.SERVICE_NAME, ".local.", entries)
 	if err != nil {
-		log.Fatalln("failed browse servers:", err.Error())
+		return fmt.Errorf("failed to browse servers: %w", err)
 	}
+
+	wg.Wait()
+	return nil
 }
 
 func extractLocalIP(ips []net.IP) string {
