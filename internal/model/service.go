@@ -1,5 +1,7 @@
 package model
 
+import "time"
+
 type ServiceInstance struct {
 	InstanceName string
 	ServiceName  string
@@ -7,4 +9,6 @@ type ServiceInstance struct {
 	HostName     string
 	Port         int
 	IPv4         string
+	// TODO: remove
+	LastSeen time.Time
 }
