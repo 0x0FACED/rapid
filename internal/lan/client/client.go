@@ -37,13 +37,14 @@ func (c *LANClient) DiscoverServers(ctx context.Context, ch chan model.ServiceIn
 	c.mdnss.DiscoverPeers(ctx, ch)
 }
 
+// TODO: change addr and port to addr
 // GetFiles получает список файлов с первого найденного сервера
-func (c *LANClient) GetFiles(addr string) ([]model.File, error) {
+func (c *LANClient) GetFiles(addr string, port string) ([]model.File, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	fmt.Println("GET FILES ADDR: ", addr)
-	url := fmt.Sprintf("http://%s:8070/api/files", addr)
+	url := fmt.Sprintf("http://%s:%s/api/files", addr, port)
 
 	resp, err := c.httpClient.Get(url)
 	if err != nil {
@@ -60,12 +61,13 @@ func (c *LANClient) GetFiles(addr string) ([]model.File, error) {
 
 }
 
+// TODO: change addr and port to addr
 // DownloadFile скачивает файл по ID
-func (c *LANClient) DownloadFile(addr, fileID, filename, savePath string) error {
+func (c *LANClient) DownloadFile(addr, port, fileID, filename, savePath string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	url := fmt.Sprintf("http://%s:8070/api/download/%s", addr, fileID)
+	url := fmt.Sprintf("http://%s:%s/api/download/%s", addr, port, fileID)
 	resp, err := c.httpClient.Get(url)
 	if err != nil {
 		return err
@@ -84,4 +86,29 @@ func (c *LANClient) DownloadFile(addr, fileID, filename, savePath string) error 
 	}
 
 	return nil
+}
+
+// PingServer проверяет, активен ли сервер
+func (c *LANClient) PingServer(addr string) bool {
+	url := fmt.Sprintf("http://%s/api/ping", addr)
+
+	resp, err := c.httpClient.Get(url)
+	if err != nil {
+		log.Println("Ping failed:", err)
+		return false
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Println("Ping failed with status:", resp.Status)
+		return false
+	}
+
+	var result map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		log.Println("Failed to parse ping response:", err)
+		return false
+	}
+
+	return result["status"] == "alive"
 }

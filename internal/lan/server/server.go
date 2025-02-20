@@ -25,7 +25,7 @@ func New(cfg configs.LANServerConfig) *LANServer {
 	mux := http.NewServeMux()
 	server := &LANServer{
 		httpServer: &http.Server{
-			Addr:    "0.0.0.0:8070",
+			Addr:    cfg.Address,
 			Handler: mux,
 		},
 		fileList: make(map[string]model.File),
@@ -39,6 +39,7 @@ func (s *LANServer) RegisterHandlers(mux *http.ServeMux) {
 	mux.HandleFunc("/api/share", s.handleShare)
 	mux.HandleFunc("/api/files", s.handleFiles)
 	mux.HandleFunc("/api/download/", s.handleDownload)
+	mux.HandleFunc("/api/ping", s.handlePing)
 }
 
 func (s *LANServer) Start() error {
@@ -65,6 +66,17 @@ func (s *LANServer) ShareLocal(path string) (model.File, error) {
 	s.fileList[id] = file
 
 	return file, nil
+}
+
+func (s *LANServer) handlePing(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "alive"})
 }
 
 // TODO: add auth
