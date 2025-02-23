@@ -23,6 +23,7 @@ type LANServer struct {
 
 func New(cfg configs.LANServerConfig) *LANServer {
 	mux := http.NewServeMux()
+
 	server := &LANServer{
 		httpServer: &http.Server{
 			Addr:    cfg.Address,
@@ -79,7 +80,6 @@ func (s *LANServer) handlePing(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "alive"})
 }
 
-// TODO: add auth
 func (s *LANServer) handleShare(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
