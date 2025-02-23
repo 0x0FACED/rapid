@@ -6,7 +6,6 @@ import (
 	"net"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/0x0FACED/rapid/internal/model"
 	"github.com/grandcat/zeroconf"
@@ -64,8 +63,6 @@ func (s *MDNSScanner) DiscoverPeers(ctx context.Context, ch chan model.ServiceIn
 					HostName:     entry.HostName,
 					Port:         entry.Port,
 					IPv4:         extractLocalIP(entry.AddrIPv4),
-					// TODO: remove
-					LastSeen: time.Now(),
 				}
 				ch <- inst
 			}
