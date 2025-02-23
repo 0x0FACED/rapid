@@ -9,6 +9,7 @@ import (
 	"github.com/0x0FACED/rapid/internal/lan/mdnss"
 	"github.com/0x0FACED/rapid/internal/lan/server"
 	"github.com/0x0FACED/rapid/internal/rapid"
+	"github.com/0x0FACED/rapid/internal/rapid/controller"
 	"github.com/0x0FACED/rapid/pkg/generator"
 	"github.com/google/uuid"
 )
@@ -22,18 +23,18 @@ func main() {
 		name = uuid.NewString()
 	}
 
-	mdnss, err := mdnss.New(name, 8080)
+	mdnss, err := mdnss.New(name, 8070)
 	if err != nil {
 		fmt.Println("Ошибка:", err)
 		return
 	}
 
 	c := client.New(mdnss)
-	_ = c
-	s := server.New(configs.LANServerConfig{Address: "0.0.0.0:8080", DownloadsDir: "./test-dir"})
+	s := server.New(configs.LANServerConfig{Address: "0.0.0.0:8070", DownloadsDir: "./test-dir"})
 	go s.Start()
 
+	lanController := controller.NewLANController(c)
 	fyneApp := app.NewWithID(name)
-	app := rapid.New(s, c, fyneApp)
+	app := rapid.New(s, c, lanController, fyneApp)
 	app.Start()
 }
