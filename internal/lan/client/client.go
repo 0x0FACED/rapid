@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -63,7 +62,7 @@ func (c *LANClient) GetFiles(addr string, port string) ([]model.File, error) {
 
 // TODO: change addr and port to addr
 // DownloadFile скачивает файл по ID
-func (c *LANClient) DownloadFile(addr, port, fileID, filename, savePath string) error {
+func (c *LANClient) DownloadFile(addr, port, fileID, filename string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -74,7 +73,7 @@ func (c *LANClient) DownloadFile(addr, port, fileID, filename, savePath string) 
 	}
 	defer resp.Body.Close()
 
-	out, err := os.Create(filepath.Join(savePath, filename))
+	out, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
