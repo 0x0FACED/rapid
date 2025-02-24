@@ -46,14 +46,14 @@ func (a *Rapid) createMainWindow() fyne.Window {
 	mainWindow := a.fyneApp.NewWindow("rapid")
 
 	tabs := container.NewAppTabs(
-		container.NewTabItem("LAN", a.lanController.CreateLANContent()),
+		container.NewTabItem("LAN", a.lanController.CreateLANContent(mainWindow)),
 		container.NewTabItem("WebRTC", a.createWebRTCContent()),
 		container.NewTabItem("Options", createOptionsContent()),
 	)
 	mainWindow.Resize(fyne.NewSize(800, 600))
 
 	content := container.NewBorder(
-		a.lanController.CreateTopPanel(mainWindow),
+		nil,
 		createFooter(),
 		nil,
 		nil,

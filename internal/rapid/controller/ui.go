@@ -5,9 +5,7 @@ import (
 	"log"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -45,21 +43,10 @@ func (lc *LANController) handleFileSelection(path string) error {
 	return nil
 }
 
-func (lc *LANController) CreateTopPanel(window fyne.Window) fyne.CanvasObject {
+func (lc *LANController) CreateLANTopPanel(window fyne.Window) fyne.CanvasObject {
 	fileDialogButton := widget.NewButton("Choose File", func() {
 		lc.showFilePicker(window)
 	})
 
-	searchEntry := widget.NewEntry()
-	searchEntry.SetPlaceHolder("Search...")
-	searchEntry.OnChanged = func(query string) {
-		// TODO: Implement search functionality
-	}
-
-	return container.NewGridWithColumns(
-		3,
-		fileDialogButton,
-		searchEntry,
-		layout.NewSpacer(),
-	)
+	return fileDialogButton
 }

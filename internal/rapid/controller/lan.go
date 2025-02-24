@@ -7,6 +7,7 @@ import (
 	"log"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -71,14 +72,17 @@ func (s *ServerState) GetAll() []model.ServiceInstance {
 }
 
 type FileState struct {
-	Files     map[string]model.File
-	mu        sync.RWMutex
-	sortedIDs []string
+	Files         map[string]model.File
+	FilteredFiles []model.File
+	SearchQuery   string
+	mu            sync.RWMutex
+	sortedIDs     []string
 }
 
 func NewFileState() *FileState {
 	return &FileState{
-		Files: make(map[string]model.File),
+		Files:         make(map[string]model.File),
+		FilteredFiles: make([]model.File, 0),
 	}
 }
 
@@ -93,19 +97,42 @@ func (f *FileState) Add(id string, file model.File) {
 		})
 	}
 	f.Files[id] = file
+
+	if f.SearchQuery != "" {
+		f.Filter(f.SearchQuery)
+	}
 }
 
 func (f *FileState) GetAll() []model.File {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
-	result := make([]model.File, 0, len(f.sortedIDs))
+	if f.SearchQuery == "" {
+		result := make([]model.File, 0, len(f.sortedIDs))
+		for _, id := range f.sortedIDs {
+			if file, exists := f.Files[id]; exists {
+				result = append(result, file)
+			}
+		}
+		return result
+	}
+
+	return f.FilteredFiles
+}
+
+func (f *FileState) Filter(query string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.SearchQuery = strings.ToLower(query)
+	f.FilteredFiles = make([]model.File, 0)
+
 	for _, id := range f.sortedIDs {
-		if file, exists := f.Files[id]; exists {
-			result = append(result, file)
+		file := f.Files[id]
+		if strings.Contains(strings.ToLower(file.Name), f.SearchQuery) {
+			f.FilteredFiles = append(f.FilteredFiles, file)
 		}
 	}
-	return result
 }
 
 type LANController struct {
@@ -194,26 +221,38 @@ func (lc *LANController) refreshUI() {
 	if lc.serversList != nil {
 		lc.serversList.Refresh()
 	}
+
 	if lc.receivedList != nil {
 		lc.receivedList.Refresh()
 	}
+
 	if lc.sharedList != nil {
 		lc.sharedList.Refresh()
 	}
 }
 
-func (lc *LANController) CreateLANContent() fyne.CanvasObject {
+func (lc *LANController) CreateLANContent(w fyne.Window) fyne.CanvasObject {
 	lc.initServerList()
 	lc.initReceivedFilesList()
 	lc.initSharedFilesList()
 
-	return container.NewHSplit(
-		lc.createServerListSection(),
-		container.NewVSplit(
-			lc.createReceivedFilesSection(),
-			lc.createSharedFilesSection(),
+	topPanel := lc.CreateLANTopPanel(w)
+
+	content := container.NewBorder(
+		topPanel,
+		nil,
+		nil,
+		nil,
+		container.NewHSplit(
+			lc.createServerListSection(),
+			container.NewVSplit(
+				lc.createReceivedFilesSection(),
+				lc.createSharedFilesSection(),
+			),
 		),
 	)
+
+	return content
 }
 
 func (lc *LANController) initServerList() {
@@ -377,11 +416,11 @@ func (lc *LANController) createServerListSection() fyne.CanvasObject {
 
 	separator := NewCustomSeparator(
 		color.RGBA{R: 200, G: 200, B: 200, A: 255},
-		1,
+		2,
 		true,
 	)
 
-	cont := container.NewVBox(label, header, separator)
+	cont := container.NewBorder(label, header, nil, nil, separator)
 	return container.NewBorder(cont, nil, nil, nil, lc.serversList)
 }
 
@@ -397,11 +436,20 @@ func (lc *LANController) createReceivedFilesSection() fyne.CanvasObject {
 
 	separator := NewCustomSeparator(
 		color.RGBA{R: 200, G: 200, B: 200, A: 255},
-		1,
+		2,
 		true,
 	)
 
-	cont := container.NewBorder(label, header, nil, nil, separator)
+	searchEntry := widget.NewEntry()
+	searchEntry.SetPlaceHolder("Search...")
+	searchEntry.OnChanged = func(query string) {
+		lc.receivedFiles.Filter(query)
+		lc.receivedList.Refresh()
+	}
+
+	labelCont := container.NewGridWithColumns(2, label, searchEntry)
+
+	cont := container.NewBorder(labelCont, header, nil, nil, separator)
 	return container.NewBorder(cont, nil, nil, nil, lc.receivedList)
 }
 
@@ -417,10 +465,19 @@ func (lc *LANController) createSharedFilesSection() fyne.CanvasObject {
 
 	separator := NewCustomSeparator(
 		color.RGBA{R: 200, G: 200, B: 200, A: 255},
-		1,
+		2,
 		true,
 	)
 
-	cont := container.NewBorder(label, header, nil, nil, separator)
+	searchEntry := widget.NewEntry()
+	searchEntry.SetPlaceHolder("Search...")
+	searchEntry.OnChanged = func(query string) {
+		lc.sharedFiles.Filter(query)
+		lc.sharedList.Refresh()
+	}
+
+	labelCont := container.NewGridWithColumns(2, label, searchEntry)
+
+	cont := container.NewBorder(labelCont, header, nil, nil, separator)
 	return container.NewBorder(cont, nil, nil, nil, lc.sharedList)
 }
