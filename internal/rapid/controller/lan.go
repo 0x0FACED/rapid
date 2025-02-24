@@ -136,6 +136,7 @@ func (f *FileState) Filter(query string) {
 }
 
 type LANController struct {
+	instName      string
 	client        *client.LANClient
 	server        *server.LANServer
 	serverState   *ServerState
@@ -150,8 +151,9 @@ type LANController struct {
 	shutdownChan  chan struct{}
 }
 
-func NewLANController(client *client.LANClient, server *server.LANServer) *LANController {
+func NewLANController(client *client.LANClient, server *server.LANServer, instName string) *LANController {
 	return &LANController{
+		instName:      instName,
 		client:        client,
 		server:        server,
 		serverState:   NewServerState(),

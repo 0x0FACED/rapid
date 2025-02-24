@@ -33,7 +33,7 @@ func main() {
 	s := server.New(configs.LANServerConfig{Address: "0.0.0.0:8070", DownloadsDir: "./test-dir"})
 	go s.Start()
 
-	lanController := controller.NewLANController(c, s)
+	lanController := controller.NewLANController(c, s, name)
 	fyneApp := app.NewWithID(name)
 	app := rapid.New(s, c, lanController, fyneApp)
 	app.Start()

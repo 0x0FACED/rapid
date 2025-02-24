@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 )
@@ -48,5 +49,8 @@ func (lc *LANController) CreateLANTopPanel(window fyne.Window) fyne.CanvasObject
 		lc.showFilePicker(window)
 	})
 
-	return fileDialogButton
+	name := widget.NewLabelWithStyle("Your name: "+lc.instName, fyne.TextAlignTrailing, fyne.TextStyle{Bold: true, Underline: true})
+
+	cont := container.NewBorder(nil, nil, fileDialogButton, name, nil)
+	return cont
 }
