@@ -19,6 +19,7 @@ Just pet project =)
 - [ ] Add custom themes
 - [ ] Add **appropriate** `README.md`
 - [ ] Add restart
+- [ ] Add remove shared file button
 - [ ] Global refactor
 
 ## LAN
