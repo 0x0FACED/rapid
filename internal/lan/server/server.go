@@ -13,13 +13,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type FileInfo struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Path string `json:"path"`
-	Size int64  `json:"size"`
-}
-
 type LANServer struct {
 	httpServer *http.Server
 	fileList   map[string]model.File
@@ -30,9 +23,10 @@ type LANServer struct {
 
 func New(cfg configs.LANServerConfig) *LANServer {
 	mux := http.NewServeMux()
+
 	server := &LANServer{
 		httpServer: &http.Server{
-			Addr:    "0.0.0.0:8070",
+			Addr:    cfg.Address,
 			Handler: mux,
 		},
 		fileList: make(map[string]model.File),
@@ -46,6 +40,7 @@ func (s *LANServer) RegisterHandlers(mux *http.ServeMux) {
 	mux.HandleFunc("/api/share", s.handleShare)
 	mux.HandleFunc("/api/files", s.handleFiles)
 	mux.HandleFunc("/api/download/", s.handleDownload)
+	mux.HandleFunc("/api/ping", s.handlePing)
 }
 
 func (s *LANServer) Start() error {
@@ -74,7 +69,17 @@ func (s *LANServer) ShareLocal(path string) (model.File, error) {
 	return file, nil
 }
 
-// TODO: add auth
+func (s *LANServer) handlePing(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "alive"})
+}
+
 func (s *LANServer) handleShare(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

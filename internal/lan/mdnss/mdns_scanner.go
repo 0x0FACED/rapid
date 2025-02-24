@@ -3,17 +3,18 @@ package mdnss
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"strings"
+	"sync"
 
 	"github.com/0x0FACED/rapid/internal/model"
 	"github.com/grandcat/zeroconf"
 )
 
 type MDNSScanner struct {
-	_uuid     string // uuid of our service
-	service   *zeroconf.Server
+	_uuid   string // uuid of our service
+	service *zeroconf.Server
+	// redundant
 	entriesCh chan *zeroconf.ServiceEntry
 }
 
@@ -31,49 +32,55 @@ func New(serviceName string, port int) (*MDNSScanner, error) {
 	}, nil
 }
 
-func (s *MDNSScanner) DiscoverPeers(ctx context.Context, ch chan model.ServiceInstance) {
+// Infinite loop
+func (s *MDNSScanner) DiscoverPeers(ctx context.Context, ch chan model.ServiceInstance) error {
 	resolver, err := zeroconf.NewResolver(nil)
 	if err != nil {
-		log.Fatalln("failed init resolver:", err.Error())
+		return fmt.Errorf("failed to initialize resolver: %w", err)
 	}
 
 	entries := make(chan *zeroconf.ServiceEntry)
+	defer close(entries)
 
-	go func(results <-chan *zeroconf.ServiceEntry) {
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case entry, ok := <-results:
+			case entry, ok := <-entries:
 				if !ok {
 					return
 				}
-				if entry.Instance != s._uuid {
-					inst := model.ServiceInstance{
-						InstanceName: entry.Instance,
-						ServiceName:  entry.Service,
-						Domain:       entry.Domain,
-						HostName:     entry.HostName,
-						Port:         entry.Port,
-						IPv4:         extractLocalIP(entry.AddrIPv4),
-					}
-					select {
-					case ch <- inst:
-						fmt.Printf("\nfound inst: %+v\n", inst)
-					case <-ctx.Done():
-						return
-					}
+				if entry.Instance == s._uuid {
+					continue
 				}
+				inst := model.ServiceInstance{
+					InstanceName: entry.Instance,
+					ServiceName:  entry.Service,
+					Domain:       entry.Domain,
+					HostName:     entry.HostName,
+					Port:         entry.Port,
+					IPv4:         extractLocalIP(entry.AddrIPv4),
+				}
+				ch <- inst
 			}
 		}
-	}(entries)
+	}()
 
-	err = resolver.Browse(ctx, model.SERVICE_NAME, "local.", entries)
+	err = resolver.Browse(ctx, model.SERVICE_NAME, ".local.", entries)
 	if err != nil {
-		log.Fatalln("failed browse servers:", err.Error())
+		return fmt.Errorf("failed to browse servers: %w", err)
 	}
+
+	wg.Wait()
+	return nil
 }
 
+// xd
 func extractLocalIP(ips []net.IP) string {
 	for _, ip := range ips {
 		curr := ip.To4().String()
