@@ -12,8 +12,9 @@ import (
 )
 
 type MDNSScanner struct {
-	_uuid     string // uuid of our service
-	service   *zeroconf.Server
+	_uuid   string // uuid of our service
+	service *zeroconf.Server
+	// redundant
 	entriesCh chan *zeroconf.ServiceEntry
 }
 
@@ -31,6 +32,7 @@ func New(serviceName string, port int) (*MDNSScanner, error) {
 	}, nil
 }
 
+// Infinite loop
 func (s *MDNSScanner) DiscoverPeers(ctx context.Context, ch chan model.ServiceInstance) error {
 	resolver, err := zeroconf.NewResolver(nil)
 	if err != nil {
@@ -78,6 +80,7 @@ func (s *MDNSScanner) DiscoverPeers(ctx context.Context, ch chan model.ServiceIn
 	return nil
 }
 
+// xd
 func extractLocalIP(ips []net.IP) string {
 	for _, ip := range ips {
 		curr := ip.To4().String()

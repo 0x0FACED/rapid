@@ -36,11 +36,14 @@ func (si ServiceInstance) Validate() error {
 	if si.InstanceName == "" {
 		return fmt.Errorf("instance name is required")
 	}
+
 	if si.IPv4 == "" {
 		return fmt.Errorf("IPv4 address is required")
 	}
+
 	if si.Port <= 0 || si.Port > math.MaxUint16 {
 		return fmt.Errorf("invalid port number: %d", si.Port)
 	}
+
 	return nil
 }

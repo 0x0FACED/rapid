@@ -13,16 +13,19 @@ type File struct {
 	Size int64  `json:"size"` // size in bytes
 }
 
+// To see not 123213131321 bytes
 func (f File) SizeString() string {
 	const unit = 1024
 	if f.Size < unit {
 		return fmt.Sprintf("%d B", f.Size)
 	}
+
 	div, exp := int64(unit), 0
 	for n := f.Size / unit; n >= unit; n /= unit {
 		div *= unit
 		exp++
 	}
+
 	return fmt.Sprintf(
 		"%.1f %ciB",
 		float64(f.Size)/float64(div),

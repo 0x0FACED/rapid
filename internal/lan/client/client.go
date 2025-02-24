@@ -18,9 +18,9 @@ import (
 // LANClient позволяет находить серверы и загружать файлы
 type LANClient struct {
 	httpClient *http.Client
+	mdnss      *mdnss.MDNSScanner
 
-	mu    sync.Mutex
-	mdnss *mdnss.MDNSScanner
+	mu sync.Mutex
 }
 
 // New создает новый клиент
