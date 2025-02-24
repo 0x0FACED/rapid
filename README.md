@@ -18,6 +18,7 @@ Just pet project =)
 - [ ] Add sorting by names or size
 - [ ] Add custom themes
 - [ ] Add **appropriate** `README.md`
+- [ ] Add restart
 - [ ] Global refactor
 
 ## LAN
