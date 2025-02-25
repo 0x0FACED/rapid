@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"strings"
 	"sync"
 
 	"github.com/0x0FACED/rapid/internal/model"
@@ -80,12 +79,23 @@ func (s *MDNSScanner) DiscoverPeers(ctx context.Context, ch chan model.ServiceIn
 	return nil
 }
 
-// xd
 func extractLocalIP(ips []net.IP) string {
+	privateBlocks := []*net.IPNet{
+		{IP: net.ParseIP("10.0.0.0"), Mask: net.CIDRMask(8, 32)},
+		{IP: net.ParseIP("172.16.0.0"), Mask: net.CIDRMask(12, 32)},
+		{IP: net.ParseIP("192.168.0.0"), Mask: net.CIDRMask(16, 32)},
+	}
+
 	for _, ip := range ips {
-		curr := ip.To4().String()
-		if strings.HasPrefix(curr, "192.168") {
-			return curr
+		ipv4 := ip.To4()
+		if ipv4 == nil {
+			continue
+		}
+
+		for _, block := range privateBlocks {
+			if block.Contains(ipv4) {
+				return ipv4.String()
+			}
 		}
 	}
 
