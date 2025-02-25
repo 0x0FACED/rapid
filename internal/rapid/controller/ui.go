@@ -49,7 +49,7 @@ func (lc *LANController) CreateLANTopPanel(window fyne.Window) fyne.CanvasObject
 		lc.showFilePicker(window)
 	})
 
-	name := widget.NewLabelWithStyle("Your name: "+lc.instName, fyne.TextAlignTrailing, fyne.TextStyle{Bold: true, Underline: true})
+	name := widget.NewLabelWithStyle("Your name: "+lc.instName, fyne.TextAlignTrailing, fyne.TextStyle{Bold: true, Italic: true})
 
 	cont := container.NewBorder(nil, nil, fileDialogButton, name, nil)
 	return cont
