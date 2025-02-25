@@ -61,7 +61,7 @@ func (lc *LANController) Stop() {
 }
 
 func (lc *LANController) startServerDiscovery(ctx context.Context) {
-	lc.client.DiscoverServers(ctx, lc.serversChan)
+	lc.client.DiscoverPeers(ctx, lc.serversChan)
 }
 
 func (lc *LANController) startServerMaintenance(ctx context.Context) {

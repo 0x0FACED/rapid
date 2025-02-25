@@ -31,8 +31,8 @@ func New(mdnss *mdnss.MDNSScanner) *LANClient {
 	}
 }
 
-// DiscoverServers ищет сервера в сети
-func (c *LANClient) DiscoverServers(ctx context.Context, ch chan model.ServiceInstance) {
+// DiscoverPeers ищет сервера в сети
+func (c *LANClient) DiscoverPeers(ctx context.Context, ch chan model.ServiceInstance) {
 	c.mdnss.DiscoverPeers(ctx, ch)
 }
 
@@ -42,7 +42,6 @@ func (c *LANClient) GetFiles(addr string, port string) ([]model.File, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	fmt.Println("GET FILES ADDR: ", addr)
 	url := fmt.Sprintf("http://%s:%s/api/files", addr, port)
 
 	resp, err := c.httpClient.Get(url)
