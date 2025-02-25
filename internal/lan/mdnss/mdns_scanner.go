@@ -13,8 +13,6 @@ import (
 type MDNSScanner struct {
 	_uuid   string // uuid of our service
 	service *zeroconf.Server
-	// redundant
-	entriesCh chan *zeroconf.ServiceEntry
 }
 
 // Создание mDNS-сканера
@@ -25,9 +23,8 @@ func New(serviceName string, port int) (*MDNSScanner, error) {
 	}
 
 	return &MDNSScanner{
-		_uuid:     serviceName,
-		service:   service,
-		entriesCh: make(chan *zeroconf.ServiceEntry, 10),
+		_uuid:   serviceName,
+		service: service,
 	}, nil
 }
 
