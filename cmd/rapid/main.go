@@ -34,7 +34,8 @@ func main() {
 	go s.Start()
 
 	lanController := controller.NewLANController(c, s, name)
+	netController := controller.NewNetController(s, name)
 	fyneApp := app.NewWithID(name)
-	app := rapid.New(s, c, lanController, fyneApp)
+	app := rapid.New(s, c, lanController, netController, fyneApp)
 	app.Start()
 }

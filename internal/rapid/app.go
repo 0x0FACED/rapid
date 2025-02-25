@@ -16,17 +16,19 @@ type Rapid struct {
 	client *client.LANClient
 
 	lanController *controller.LANController
+	netController *controller.NetController
 
 	fyneApp fyne.App
 
 	mu sync.Mutex
 }
 
-func New(s *server.LANServer, c *client.LANClient, l *controller.LANController, a fyne.App) *Rapid {
+func New(s *server.LANServer, c *client.LANClient, l *controller.LANController, n *controller.NetController, a fyne.App) *Rapid {
 	return &Rapid{
 		lan:           s,
 		client:        c,
 		lanController: l,
+		netController: n,
 		fyneApp:       a,
 	}
 }
@@ -47,7 +49,7 @@ func (a *Rapid) createMainWindow() fyne.Window {
 
 	tabs := container.NewAppTabs(
 		container.NewTabItem("LAN", a.lanController.CreateLANContent(mainWindow)),
-		container.NewTabItem("WebRTC", a.createWebRTCContent()),
+		container.NewTabItem("WebRTC", a.netController.CreateNetContent(mainWindow)),
 		container.NewTabItem("Options", createOptionsContent()),
 	)
 	mainWindow.Resize(fyne.NewSize(800, 600))
