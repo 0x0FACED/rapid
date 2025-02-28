@@ -2,9 +2,11 @@ package controller
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image/color"
 	"log"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -14,29 +16,38 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/0x0FACED/rapid/internal/lan/server"
 	"github.com/0x0FACED/rapid/internal/model"
+	"github.com/caiguanhao/readqr"
 	"github.com/skip2/go-qrcode"
 	"golang.design/x/clipboard"
 )
 
 type NetController struct {
+	p2pstate *P2PConnectionState
+
 	window         *fyne.Window
 	instName       string
 	receivedFiles  *FileState
 	server         *server.LANServer
 	sharedFiles    *FileState
-	connectionInfo *fyne.Container
+	connectionInfo *container.Scroll
 	receivedList   *widget.List
 	sharedList     *widget.List
 	currentServer  string
 }
 
-func NewNetController(s *server.LANServer, instName string) *NetController {
+func NewNetController(s *server.LANServer, instName string) (*NetController, error) {
+	p2pstate, err := NewP2PConnectionState()
+	if err != nil {
+		return nil, err
+	}
+
 	return &NetController{
+		p2pstate:      p2pstate,
 		instName:      instName,
 		server:        s,
 		receivedFiles: NewFileState(),
 		sharedFiles:   NewFileState(),
-	}
+	}, nil
 }
 
 func (nc *NetController) refreshUI() {
@@ -95,6 +106,8 @@ func (nc *NetController) CreateLANTopPanel(window fyne.Window) fyne.CanvasObject
 }
 
 func (nc *NetController) CreateNetContent(w fyne.Window) fyne.CanvasObject {
+	clipboard.Init()
+
 	nc.initConnectionInfo(w)
 	nc.initReceivedFilesList()
 	nc.initSharedFilesList()
@@ -118,58 +131,229 @@ func (nc *NetController) CreateNetContent(w fyne.Window) fyne.CanvasObject {
 	return content
 }
 
-func (nc *NetController) initConnectionInfo(window fyne.Window) {
-	input := widget.NewEntry()
-	input.SetPlaceHolder("Enter text for QR code...")
+func (nc *NetController) initCreateConnectionTab(window fyne.Window) fyne.CanvasObject {
+	passEntry := widget.NewEntry()
+	passEntry.SetPlaceHolder("Enter password...")
 
 	var qrImage *canvas.Image
 	qrImage = canvas.NewImageFromResource(nil)
 	qrImage.FillMode = canvas.ImageFillContain
-	qrImage.SetMinSize(fyne.NewSquareSize(128))
+	qrImage.SetMinSize(fyne.NewSquareSize(100))
 
-	clipboard.Init()
-
-	generateBtn := widget.NewButton("Generate QR Code", func() {
-		if input.Text == "" {
-			dialog.ShowInformation("Error", "Please enter text first", window)
+	genQRBtn := widget.NewButton("Create offer QR Code", func() {
+		if passEntry.Text == "" {
+			dialog.ShowError(errors.New("Provide password for connection"), window)
 			return
 		}
 
-		qr, err := qrcode.New(input.Text, qrcode.Medium)
+		nc.p2pstate.SetPassword(passEntry.Text)
+
+		offer, err := nc.p2pstate.CreateEncodedOffer(nil)
+		if err != nil {
+			dialog.ShowError(err, window)
+			return
+		}
+
+		qr, err := qrcode.New(offer, qrcode.Medium)
 		if err != nil {
 			dialog.ShowError(err, window)
 			return
 		}
 
 		var buf bytes.Buffer
-		err = qr.Write(128, &buf)
+		err = qr.Write(400, &buf)
 		if err != nil {
 			dialog.ShowError(err, window)
 			return
 		}
 
+		fmt.Println("PASS: ", passEntry.Text)
+
 		qrImage.Resource = fyne.NewStaticResource("qr.png", buf.Bytes())
 		qrImage.Refresh()
-
-		clipboard.Write(clipboard.FmtImage, qrImage.Resource.Content())
 	})
 
-	copyBtn := widget.NewButton("Copy QR Code", func() {
+	copyQRBtn := widget.NewButton("Copy QR Code", func() {
 		if qrImage.Resource == nil {
 			dialog.ShowInformation("Error", "Generate QR code first", window)
 			return
 		}
 
-		clipboard.Write(clipboard.FmtImage, qrImage.Resource.Content())
+		_ = clipboard.Write(clipboard.FmtImage, qrImage.Resource.Content())
 		dialog.ShowInformation("Success", "QR code copied to clipboard", window)
 	})
 
-	nc.connectionInfo = container.NewVBox(
-		input,
-		generateBtn,
+	pasteQRBtn := widget.NewButton("Paste answer QR Code", func() {
+		imgBytes := clipboard.Read(clipboard.FmtImage)
+		if imgBytes == nil {
+			dialog.ShowInformation("Error", "You must paste QR Code", window)
+			return
+		}
+
+		result, err := readqr.Decode(bytes.NewReader(imgBytes))
+		if err != nil {
+			dialog.ShowError(err, window)
+			return
+		}
+
+		decodedAnswer, err := nc.p2pstate.DecodeAnswer(result)
+		if err != nil {
+			dialog.ShowError(err, window)
+			return
+		}
+
+		if err := nc.p2pstate.ValidatePassword(decodedAnswer.Hash); err != nil {
+			dialog.ShowError(fmt.Errorf("invalid password"), window)
+			return
+		}
+
+		if err := nc.p2pstate.conn.SetRemoteDescription(decodedAnswer.SDP); err != nil {
+			dialog.ShowError(err, window)
+			return
+		}
+
+		go func() {
+			if err := nc.p2pstate.WaitForConnection(30 * time.Second); err != nil {
+				dialog.ShowError(err, window)
+			}
+		}()
+
+		nc.p2pstate.onConnect = func() {
+			dialog.ShowInformation("Success", "Connected!", window)
+		}
+
+		dialog.ShowInformation("Info", "Answer accepted, connecting...", window)
+	})
+
+	return container.NewVBox(
+		passEntry,
+		genQRBtn,
 		qrImage,
-		copyBtn,
+		copyQRBtn,
+		pasteQRBtn,
 	)
+}
+
+func (nc *NetController) initConnectTab(window fyne.Window) fyne.CanvasObject {
+	passEntry := widget.NewEntry()
+	passEntry.SetPlaceHolder("Enter password for connect...")
+
+	var qrImage *canvas.Image
+	qrImage = canvas.NewImageFromResource(nil)
+	qrImage.FillMode = canvas.ImageFillContain
+	qrImage.SetMinSize(fyne.NewSquareSize(100))
+
+	genQRBtn := widget.NewButton("Create answer QR Code", func() {
+		if passEntry.Text == "" {
+			dialog.ShowError(errors.New("Provide password for connection"), window)
+			return
+		}
+
+		nc.p2pstate.SetPassword(passEntry.Text)
+
+		fmt.Println("PASS SET: ", passEntry.Text)
+
+		answer, err := nc.p2pstate.CreateEncodedAnswer(nil)
+		if err != nil {
+			dialog.ShowError(err, window)
+			return
+		}
+
+		qr, err := qrcode.New(answer, qrcode.Medium)
+		if err != nil {
+			dialog.ShowError(err, window)
+			return
+		}
+
+		var buf bytes.Buffer
+		err = qr.Write(400, &buf)
+		if err != nil {
+			dialog.ShowError(err, window)
+			return
+		}
+
+		go func() {
+			if err := nc.p2pstate.WaitForConnection(30 * time.Second); err != nil {
+				dialog.ShowError(err, window)
+			}
+		}()
+
+		qrImage.Resource = fyne.NewStaticResource("qr.png", buf.Bytes())
+		qrImage.Refresh()
+	})
+
+	copyQRBtn := widget.NewButton("Copy QR Code", func() {
+		if qrImage.Resource == nil {
+			dialog.ShowInformation("Error", "Generate QR code first", window)
+			return
+		}
+
+		_ = clipboard.Write(clipboard.FmtImage, qrImage.Resource.Content())
+		dialog.ShowInformation("Success", "QR code copied to clipboard", window)
+	})
+
+	pasteQRBtn := widget.NewButton("Paste offer QR Code", func() {
+		nc.p2pstate.SetPassword(passEntry.Text)
+
+		imgBytes := clipboard.Read(clipboard.FmtImage)
+		// not image in clipboard
+		if imgBytes == nil {
+			dialog.ShowInformation("Error", "You must paste QR Code", window)
+			return
+		}
+		buf := bytes.NewBuffer(imgBytes)
+
+		result, err := readqr.Decode(buf)
+		if err != nil {
+			dialog.ShowError(err, window)
+			return
+		}
+		// debug output
+		fmt.Println(result)
+
+		decodedOffer, err := nc.p2pstate.DecodeOffer(result)
+		if err != nil {
+			dialog.ShowError(err, window)
+			return
+		}
+
+		if err := nc.p2pstate.ValidatePassword(decodedOffer.Hash); err != nil {
+			dialog.ShowError(fmt.Errorf("invalid password"), window)
+			return
+		}
+
+		if err := nc.p2pstate.conn.SetRemoteDescription(decodedOffer.SDP); err != nil {
+			dialog.ShowError(err, window)
+			return
+		}
+
+		if err := nc.p2pstate.AddRemoteICECandidates(); err != nil {
+			dialog.ShowError(err, window)
+			return
+		}
+
+		dialog.ShowInformation("Success", "QR code loaded", window)
+	})
+
+	return container.NewVBox(
+		passEntry,
+		pasteQRBtn,
+		genQRBtn,
+		qrImage,
+		copyQRBtn,
+	)
+}
+
+func (nc *NetController) initConnectionInfo(window fyne.Window) {
+	tabs := container.NewAppTabs(
+		container.NewTabItem("Host", nc.initCreateConnectionTab(window)),
+		container.NewTabItem("Client", nc.initConnectTab(window)),
+	)
+
+	input := widget.NewEntry()
+	input.SetPlaceHolder("Enter password for connection...")
+
+	nc.connectionInfo = container.NewVScroll(tabs)
 
 }
 

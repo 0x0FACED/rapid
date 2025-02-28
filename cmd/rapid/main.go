@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 
 	"fyne.io/fyne/v2/app"
 	"github.com/0x0FACED/rapid/configs"
@@ -34,7 +35,13 @@ func main() {
 	go s.Start()
 
 	lanController := controller.NewLANController(c, s, name)
-	netController := controller.NewNetController(s, name)
+
+	netController, err := controller.NewNetController(s, name)
+	if err != nil {
+		log.Fatalln(err)
+		return
+	}
+
 	fyneApp := app.NewWithID(name)
 	app := rapid.New(s, c, lanController, netController, fyneApp)
 	app.Start()
